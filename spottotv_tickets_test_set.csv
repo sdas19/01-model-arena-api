@@ -1,0 +1,41 @@
+input_text,expected_label
+"Tried to renew my yearly plan with UPI, it says payment failed. Match starts in 1 hour please help",payment_failed
+"Paisa kat gaya but subscription still showing free plan. Txn id 4481920",payment_failed
+"Card payment keeps getting declined on your app but works everywhere else",payment_failed
+"Autopay didn't go through this month and now I can't watch anything",payment_failed
+"I paid 399 via GPay 20 mins ago, money debited, premium not activated",payment_failed
+"payment page stuck on processing for 10 min then error. tried 3 times",payment_failed
+"bank says amount debited but your app says transaction unsuccessful. want my plan activated or money back",payment_failed
+"Why was I charged 499 when the plan says 399?",billing_query
+"I was charged twice for the same month, please check",billing_query
+"Need a GST invoice for my annual subscription for office reimbursement",billing_query
+"When will my plan auto renew and how much will it charge?",billing_query
+"Is the price going up next month? Got an email about plan changes",billing_query
+"I want a refund, I subscribed by mistake yesterday",refund_request
+"The match I paid for was not streamed at all. I want my money back",refund_request
+"Please refund my last month charge, I had already cancelled before renewal",refund_request
+"refund chahiye, app kaam hi nahi kar raha poore hafte",refund_request
+"How do I cancel my subscription? Can't find the option anywhere",subscription_cancel
+"Please stop autopay on my account, I don't want to continue after this month",subscription_cancel
+"Cancel my plan. IPL is over, will come back next season",subscription_cancel
+"band karo mera subscription, ab use nahi karta",subscription_cancel
+"OTP not coming on my phone, can't login",login_issue
+"Changed my phone number and now I can't access my account",login_issue
+"It keeps logging me out every time I open the app on my TV",login_issue
+"Google sign in gives error 403 on the app",login_issue
+"Stream keeps buffering every 2 minutes even on 100 Mbps wifi",streaming_quality
+"Audio is ahead of the video by like 3 seconds during live match",streaming_quality
+"Video stuck on loading circle on my Samsung TV app",streaming_quality
+"Quality drops to 360p automatically, can't select HD",streaming_quality
+"App crashes as soon as I open the live match on Android 14",streaming_quality
+"Will you stream the Ranji Trophy matches this season?",content_request
+"Please add Bengali commentary for India matches",content_request
+"Can you add a highlights-only mode for people who miss live games?",content_request
+"Kya women's T20 league ke matches milenge?",content_request
+"Loving the new scorecard overlay, really clean design",general_feedback
+"Your commentators talk too much during the overs, it's annoying",general_feedback
+"Best cricket app I've used, keep it up team",general_feedback
+"The new dark theme is hard to read in sunlight",general_feedback
+"Not working",unclear
+"Hello?",unclear
+"same issue as before, please fix asap",unclear
