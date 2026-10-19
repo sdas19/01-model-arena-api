@@ -23,8 +23,11 @@ from pydantic import BaseModel, Field
 # Config
 # ---------------------------------------------------------------------------
 
-# Shared secret so only YOUR edge function can call this service.
-# Set it as an environment variable on your host (Render, Railway...).
+# Two ways to protect this service (set ONE on your host, e.g. Render):
+# 1. ARENA_JWT_SECRET: callers must send a signed JWT that has not
+#    expired (made with make_token.py). Preferred: tokens expire.
+# 2. ARENA_SERVICE_TOKEN: callers must send this exact string.
+JWT_SECRET = os.environ.get("ARENA_JWT_SECRET", "")
 SERVICE_TOKEN = os.environ.get("ARENA_SERVICE_TOKEN", "")
 
 app = FastAPI(title="Model Arena API", version="1.0")
@@ -116,6 +119,24 @@ def count_tokens(usage: Optional[dict], req: RunRequest, output_text: str):
 # ---------------------------------------------------------------------------
 
 
+def check_caller(token: str) -> None:
+    """Reject the request unless it carries a valid token."""
+    if JWT_SECRET:
+        import jwt
+
+        try:
+            # Verifies the signature AND that "exp" is in the future.
+            jwt.decode(
+                token, JWT_SECRET, algorithms=["HS256"], options={"require": ["exp"]}
+            )
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    elif SERVICE_TOKEN and token != SERVICE_TOKEN:
+        raise HTTPException(status_code=401, detail="Bad service token")
+
+
 @app.get("/health")
 def health():
     """Ping this to wake the service before a run (free hosts sleep)."""
@@ -124,9 +145,14 @@ def health():
 
 @app.post("/run", response_model=RunResult)
 def run(req: RunRequest, x_service_token: str = Header(default="")):
-    if SERVICE_TOKEN and x_service_token != SERVICE_TOKEN:
-        raise HTTPException(status_code=401, detail="Bad service token")
+    """HTTP layer: check who is calling, then hand over to the logic."""
+    check_caller(x_service_token)
+    return run_one(req)
 
+
+def run_one(req: RunRequest) -> RunResult:
+    """Business logic: run one test case through one model.
+    No HTTP, no auth here, so scripts like run_eval.py can call it directly."""
     messages = [
         SystemMessage(content=req.system_prompt),
         HumanMessage(content=req.input_text),

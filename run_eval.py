@@ -15,7 +15,7 @@ import json
 import statistics
 
 from evals import format_report, score
-from main import RunRequest, run
+from main import RunRequest, run_one
 
 SYSTEM_PROMPT = open("system_prompt.txt", encoding="utf-8").read()
 
@@ -40,7 +40,7 @@ def main():
 
     results, ttfts, costs = [], [], []
     for row in rows:
-        r = run(
+        r = run_one(
             RunRequest(
                 provider=args.provider,
                 model_id=args.model,
