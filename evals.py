@@ -10,6 +10,7 @@ An eval = a test set + a scoring rule + a report.
 Each metric answers a different product question.
 """
 
+import math
 from collections import Counter, defaultdict
 
 ALLOWED_LABELS = [
@@ -62,7 +63,10 @@ def score(results):
     confusion = defaultdict(Counter)
     for r in results:
         if r["predicted"] != r["expected"]:
-            confusion[r["expected"]][r["predicted"]] += 1
+            # A failed call has no prediction; name it so it reads clearly
+            # (and so the result can be sent as JSON).
+            predicted = r["predicted"] if r["predicted"] is not None else "(error)"
+            confusion[r["expected"]][predicted] += 1
 
     return {
         "n": n,
@@ -76,6 +80,50 @@ def score(results):
         "per_label": per_label,
         "confusion": {k: dict(v) for k, v in confusion.items()},
     }
+
+
+def percentile(values, q):
+    """Nearest-rank percentile. q=0.95 -> the value 95% of runs were at or under."""
+    values = sorted(v for v in values if v is not None)
+    if not values:
+        return None
+    k = max(0, math.ceil(q * len(values)) - 1)
+    return values[k]
+
+
+def summarize(items):
+    """
+    Everything the dashboard shows for ONE model, computed in one place.
+
+    items: list of dicts with keys
+      expected, predicted          -> quality metrics (via score)
+      ttft_ms, total_ms            -> server latency (Python's stopwatch)
+      client_total_ms (optional)   -> what the user waited end to end
+      cost_usd                     -> money
+    """
+    m = score([{"expected": i["expected"], "predicted": i["predicted"]} for i in items])
+    if not m:
+        return m
+
+    # Latency only from successful calls: an error's timing isn't a real answer.
+    ok = [i for i in items if i["predicted"] is not None]
+    pick = lambda key: [i.get(key) for i in ok]
+    m["latency_ms"] = {
+        "ttft_p50": percentile(pick("ttft_ms"), 0.50),
+        "ttft_p95": percentile(pick("ttft_ms"), 0.95),
+        "total_p50": percentile(pick("total_ms"), 0.50),
+        "total_p95": percentile(pick("total_ms"), 0.95),
+        "client_total_p50": percentile(pick("client_total_ms"), 0.50),
+        "client_total_p95": percentile(pick("client_total_ms"), 0.95),
+    }
+
+    costs = [i["cost_usd"] for i in items if i.get("cost_usd") is not None]
+    avg = sum(costs) / len(costs) if costs else None
+    m["cost"] = {
+        "avg_per_task_usd": avg,
+        "per_1m_tasks_usd": avg * 1_000_000 if avg is not None else None,
+    }
+    return m
 
 
 def format_report(model_name, m):
@@ -98,4 +146,19 @@ def format_report(model_name, m):
         for true_label, preds in m["confusion"].items():
             for pred, count in preds.items():
                 lines.append(f"  {true_label} -> {pred}: {count}")
+
+    ms = lambda x: "n/a" if x is None else f"{x:.0f} ms"
+    lat = m.get("latency_ms")
+    if lat:
+        lines += [
+            "",
+            f"TTFT  p50 {ms(lat['ttft_p50'])} | p95 {ms(lat['ttft_p95'])}",
+            f"Total p50 {ms(lat['total_p50'])} | p95 {ms(lat['total_p95'])}",
+        ]
+    cost = m.get("cost")
+    if cost and cost["avg_per_task_usd"] is not None:
+        lines.append(
+            f"Cost  ${cost['avg_per_task_usd']:.6f} per task | "
+            f"${cost['per_1m_tasks_usd']:,.0f} per 1M tasks"
+        )
     return "\n".join(lines)

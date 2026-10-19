@@ -31,6 +31,7 @@ this service.
 | --- | --- | --- |
 | GET | `/health` | Wake-up ping (free hosts sleep when idle) |
 | POST | `/run` | Run one test case through one model |
+| POST | `/score` | Grade all runs for one model: accuracy, recall, precision, confusion, p50/p95 latency, cost per task (same `summarize()` as `run_eval.py`) |
 
 `POST /run` body:
 
@@ -71,7 +72,18 @@ pytest -q
 - New → Web Service → connect this GitHub repo
 - Build command: `pip install -r requirements.txt`
 - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `ARENA_SERVICE_TOKEN`
+- Environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `ARENA_JWT_SECRET`
+
+## Auth (JWT, expires in 30 days)
+
+```bash
+python make_token.py --days 30
+```
+
+- `ARENA_JWT_SECRET` → Render only. Signs and verifies tokens.
+- `ARENA_SERVICE_TOKEN` (the JWT) → Lovable secrets. Sent as the `x-service-token` header.
+- Rotate before expiry: `python make_token.py --days 30 --secret <existing secret>`, then update Lovable.
+- Fallback: if `ARENA_JWT_SECRET` is not set, the service accepts a plain `ARENA_SERVICE_TOKEN` string instead.
 
 ## Evals
 

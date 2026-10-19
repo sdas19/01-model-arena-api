@@ -59,6 +59,21 @@ class RunRequest(BaseModel):
     max_tokens: int = Field(20, ge=1, le=4000)
 
 
+class ScoreItem(BaseModel):
+    """One finished run, as stored in the runs table."""
+    expected: str
+    predicted: Optional[str] = None  # None = the call errored
+    ttft_ms: Optional[float] = None
+    total_ms: Optional[float] = None
+    client_total_ms: Optional[float] = None
+    cost_usd: Optional[float] = None
+
+
+class ScoreRequest(BaseModel):
+    """All runs for ONE model in one experiment."""
+    items: list[ScoreItem] = Field(..., min_length=1, max_length=20000)
+
+
 class RunResult(BaseModel):
     output_text: str
     parsed_label: Optional[str]
@@ -148,6 +163,17 @@ def run(req: RunRequest, x_service_token: str = Header(default="")):
     """HTTP layer: check who is calling, then hand over to the logic."""
     check_caller(x_service_token)
     return run_one(req)
+
+
+@app.post("/score")
+def score_runs(req: ScoreRequest, x_service_token: str = Header(default="")):
+    """Grade a whole batch for one model: the numbers the Results tab shows.
+    Uses the same summarize() as run_eval.py, so the dashboard and the
+    terminal can never disagree."""
+    check_caller(x_service_token)
+    from evals import summarize
+
+    return summarize([item.model_dump() for item in req.items])
 
 
 def run_one(req: RunRequest) -> RunResult:

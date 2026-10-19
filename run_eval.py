@@ -12,17 +12,11 @@ Needs ANTHROPIC_API_KEY / OPENAI_API_KEY for real providers.
 import argparse
 import csv
 import json
-import statistics
 
-from evals import format_report, score
+from evals import format_report, summarize
 from main import RunRequest, run_one
 
 SYSTEM_PROMPT = open("system_prompt.txt", encoding="utf-8").read()
-
-
-def p95(values):
-    values = sorted(values)
-    return values[max(0, int(round(0.95 * len(values))) - 1)] if values else None
 
 
 def main():
@@ -38,7 +32,7 @@ def main():
     with open(args.csv, newline="", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
 
-    results, ttfts, costs = [], [], []
+    results = []
     for row in rows:
         r = run_one(
             RunRequest(
@@ -57,17 +51,15 @@ def main():
                 "expected": row["expected_label"],
                 "predicted": r.parsed_label if not r.error else None,
                 "error": r.error,
+                "ttft_ms": r.ttft_ms_server,
+                "total_ms": r.total_ms_server,
+                "cost_usd": r.cost_usd,
             }
         )
-        if r.ttft_ms_server is not None and not r.error:
-            ttfts.append(r.ttft_ms_server)
-        costs.append(r.cost_usd)
 
-    metrics = score(results)
+    # Same function the /score endpoint uses: one source of truth.
+    metrics = summarize(results)
     print(format_report(f"{args.provider}/{args.model}", metrics))
-    if ttfts:
-        print(f"\nTTFT p50 {statistics.median(ttfts):.0f} ms | p95 {p95(ttfts):.0f} ms")
-    print(f"Avg cost per task ${sum(costs)/len(costs):.6f}")
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as f:

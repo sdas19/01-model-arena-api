@@ -113,3 +113,62 @@ def test_eval_metrics():
     assert m["critical_recall"] == 0.5          # caught 1 of 2 payment issues
     assert m["per_label"]["payment_failed"]["precision"] == 0.5
     assert m["confusion"]["payment_failed"] == {"general_feedback": 1}
+
+
+def test_jwt_valid_expired_and_tampered(monkeypatch):
+    import time
+    from make_token import make_token
+
+    monkeypatch.setattr(main, "JWT_SECRET", "test-secret")
+    good = make_token("test-secret", days=30)
+    expired = make_token("test-secret", days=30, now=int(time.time()) - 31 * 86400)
+    wrong_key = make_token("someone-else", days=30)
+
+    def call(tok):
+        return client.post("/run", json=payload(), headers={"x-service-token": tok})
+
+    assert call(good).status_code == 200
+    r = call(expired)
+    assert r.status_code == 401 and r.json()["detail"] == "Token expired"
+    assert call(wrong_key).status_code == 401
+    assert call("").status_code == 401
+
+
+def test_percentile_nearest_rank():
+    from evals import percentile
+
+    vals = list(range(1, 41))           # 1..40
+    assert percentile(vals, 0.95) == 38 # 38 of 40 values are <= 38
+    assert percentile(vals, 0.50) == 20
+    assert percentile([None, 5], 0.95) == 5
+    assert percentile([], 0.95) is None
+
+
+def test_score_endpoint(monkeypatch):
+    monkeypatch.setattr(main, "JWT_SECRET", "")
+    monkeypatch.setattr(main, "SERVICE_TOKEN", "")
+    items = [
+        {"expected": "payment_failed", "predicted": "payment_failed",
+         "ttft_ms": 400, "total_ms": 450, "client_total_ms": 1000, "cost_usd": 0.0004},
+        {"expected": "payment_failed", "predicted": None,          # an errored call
+         "total_ms": 30000, "cost_usd": 0},
+        {"expected": "billing_query", "predicted": "payment_failed",
+         "ttft_ms": 500, "total_ms": 520, "client_total_ms": 1200, "cost_usd": 0.0004},
+    ]
+    r = client.post("/score", json={"items": items})
+    assert r.status_code == 200
+    m = r.json()
+    assert round(m["accuracy"], 3) == 0.333
+    assert round(m["error_rate"], 3) == 0.333
+    assert m["critical_recall"] == 0.5
+    assert m["confusion"]["payment_failed"] == {"(error)": 1}
+    assert m["latency_ms"]["total_p95"] == 520    # errored 30s call excluded
+    assert m["latency_ms"]["client_total_p95"] == 1200
+    assert round(m["cost"]["per_1m_tasks_usd"]) == round(0.0008 / 3 * 1e6)
+
+
+def test_score_endpoint_rejects_empty_and_needs_token(monkeypatch):
+    assert client.post("/score", json={"items": []}).status_code == 422
+    monkeypatch.setattr(main, "JWT_SECRET", "s")
+    r = client.post("/score", json={"items": [{"expected": "unclear", "predicted": "unclear"}]})
+    assert r.status_code == 401
