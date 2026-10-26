@@ -172,3 +172,24 @@ def test_score_endpoint_rejects_empty_and_needs_token(monkeypatch):
     monkeypatch.setattr(main, "JWT_SECRET", "s")
     r = client.post("/score", json={"items": [{"expected": "unclear", "predicted": "unclear"}]})
     assert r.status_code == 401
+
+
+def test_openrouter_model_is_configured(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    req = main.RunRequest(**payload(provider="openrouter", model_id="vendor/some-model:free"))
+    m = main.build_model(req)
+    assert type(m).__name__ == "ChatOpenAI"
+    assert m.model_name == "vendor/some-model:free"
+    assert m.openai_api_base == main.OPENROUTER_BASE_URL
+    assert m.max_retries == 4 and m.temperature == 0
+
+
+def test_openrouter_failure_is_reported_not_raised(monkeypatch):
+    # Point at a closed local port: the call fails fast, and /run must
+    # still return a result row with the error instead of crashing.
+    monkeypatch.setattr(main, "OPENROUTER_BASE_URL", "http://127.0.0.1:9/v1")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(main, "JWT_SECRET", "")
+    monkeypatch.setattr(main, "SERVICE_TOKEN", "")
+    r = client.post("/run", json=payload(provider="openrouter", model_id="x/y:free")).json()
+    assert r["error"] is not None and r["parsed_label"] is None

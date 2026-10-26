@@ -30,6 +30,8 @@ from pydantic import BaseModel, Field
 JWT_SECRET = os.environ.get("ARENA_JWT_SECRET", "")
 SERVICE_TOKEN = os.environ.get("ARENA_SERVICE_TOKEN", "")
 
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
 app = FastAPI(title="Model Arena API", version="1.0")
 
 # Allow browser calls during local testing. The edge function is the
@@ -48,7 +50,7 @@ app.add_middleware(
 
 
 class RunRequest(BaseModel):
-    provider: Literal["anthropic", "openai", "fake"]
+    provider: Literal["anthropic", "openai", "openrouter", "fake"]
     model_id: str
     system_prompt: str
     input_text: str
@@ -107,6 +109,24 @@ def build_model(req: RunRequest):
             temperature=0,
             max_tokens=req.max_tokens,
             stream_usage=True,
+        )
+    if req.provider == "openrouter":
+        from langchain_openai import ChatOpenAI
+
+        # OpenRouter speaks the OpenAI API format, so the same LangChain
+        # class works: only the URL and the key change. One key reaches
+        # hundreds of models, e.g. "provider/model" or "provider/model:free".
+        return ChatOpenAI(
+            model=req.model_id,
+            base_url=OPENROUTER_BASE_URL,
+            api_key=os.environ.get("OPENROUTER_API_KEY", ""),
+            temperature=0,
+            max_tokens=req.max_tokens,
+            stream_usage=True,
+            # Free models are rate-limited (HTTP 429). Retry with
+            # exponential backoff instead of failing the ticket at once.
+            max_retries=4,
+            timeout=60,
         )
     # "fake" provider: a free stand-in model for testing the pipeline
     from langchain_core.language_models.fake_chat_models import (

@@ -49,6 +49,17 @@ this service.
 }
 ```
 
+## Providers
+
+| `provider` | Key needed | `model_id` example |
+| --- | --- | --- |
+| `openrouter` | `OPENROUTER_API_KEY` | `vendor/model` or `vendor/model:free` (copy from openrouter.ai) |
+| `anthropic` | `ANTHROPIC_API_KEY` | `claude-haiku-5-5` |
+| `openai` | `OPENAI_API_KEY` | an OpenAI model name |
+| `fake` | none | the answer to echo, e.g. `payment_failed` |
+
+OpenRouter calls retry up to 4 times with backoff, because free models are rate-limited.
+
 `provider: "fake"` echoes `model_id` back as the answer: free for testing.
 
 ## Run locally
@@ -72,7 +83,7 @@ pytest -q
 - New → Web Service → connect this GitHub repo
 - Build command: `pip install -r requirements.txt`
 - Start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-- Environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `ARENA_JWT_SECRET`
+- Environment variables: `OPENROUTER_API_KEY`, `ARENA_JWT_SECRET` (optional: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` for direct access)
 
 ## Auth (JWT, expires in 30 days)
 
@@ -91,6 +102,7 @@ python make_token.py --days 30
 
 ```bash
 python run_eval.py --provider fake --model payment_failed          # free sanity check: 17.5%
+python run_eval.py --provider openrouter --model <vendor/model:free>
 python run_eval.py --provider anthropic --model claude-haiku-5-5 --in-price <p> --out-price <p>
 ```
 

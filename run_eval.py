@@ -21,7 +21,7 @@ SYSTEM_PROMPT = open("system_prompt.txt", encoding="utf-8").read()
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--provider", required=True, choices=["anthropic", "openai", "fake"])
+    ap.add_argument("--provider", required=True, choices=["anthropic", "openai", "openrouter", "fake"])
     ap.add_argument("--model", required=True)
     ap.add_argument("--csv", default="spottotv_tickets_test_set.csv")
     ap.add_argument("--in-price", type=float, default=0)
