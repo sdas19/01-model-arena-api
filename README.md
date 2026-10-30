@@ -109,3 +109,31 @@ python run_eval.py --provider anthropic --model claude-haiku-5-5 --in-price <p> 
 Metrics: accuracy, valid-label rate, error rate, **payment_failed recall**
 (the business-critical miss rate), per-label recall/precision, and a
 confusion list of the most common mistakes.
+
+## Findings (v1 run, Oct 2026)
+
+Task: label 40 SpottoTV support tickets (English, Hindi, Hinglish) into 9 categories.
+Models: three free reasoning models via OpenRouter, 1 repetition, max 1,000 output tokens.
+
+| Model | Accuracy | payment_failed recall | Error rate | TTFT p50 |
+| --- | --- | --- | --- | --- |
+| Nemotron 3.5 Super VL | 100% | 100% | 0% | ~1.6 s |
+| Xing 4.0 29B-A4B | 66.7% | 85.7% | 33.3% | ~13.8 s |
+| Flint v1.0 | 45% | 0% | 55% | ~1.5 s |
+
+**What it means**
+
+- Every model labelled every ticket it answered correctly. All lost accuracy came from failed calls:
+  rate limits (Xing) and "no upstream available" (Flint) on shared free capacity.
+- So the differences were reliability and latency, not intelligence. Next version reports
+  "accuracy when answered" and "availability" separately.
+- The test set is saturated: it can't separate models on quality. v2 needs harder cases
+  (multi-intent, sarcasm, code-mixing, billing vs payment near-misses).
+- 40/40 correct still means a plausible true accuracy of roughly 91–100%.
+- For background triage, Nemotron's ~6 s p95 is acceptable; for a user-facing router it would not be.
+- Production choice: Nemotron-class quality on a paid endpoint with a fallback model;
+  free shared pools are not reliable enough to ship on.
+
+**Engineering lessons from building it**: HTTP 200 does not mean success (errors travel in the body);
+store readable errors, never `[object Object]`; exclude setup from latency; cap every run with a time budget;
+reasoning tokens count against `max_tokens`.
